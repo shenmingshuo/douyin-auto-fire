@@ -7,8 +7,8 @@ on:
         description: Only verify login and friends without sending
         type: boolean
         default: true
-      test_target:
-        description: Optional exact friend name for a single-recipient test
+      test_index:
+        description: Recipient position (1-based); empty means all configured recipients
         type: string
         default: ""
   schedule:
@@ -21,6 +21,8 @@ concurrency:
 
 jobs:
   send:
+    # Enable scheduled live sends only after a successful cloud delivery test.
+    if: github.event_name == 'workflow_dispatch' || vars.LIVE_SEND_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -116,24 +118,19 @@ jobs:
       - name: Run
         shell: bash
         env:
-          TEST_TARGET: ${{ inputs.test_target }}
+          TEST_INDEX: ${{ inputs.test_index }}
         run: |
           python - <<'PY'
           import json, os
           from pathlib import Path
           path = Path('config.json')
           config = json.loads(path.read_text())
-          target = os.environ.get('TEST_TARGET', '')
-          if target:
-              if 'targets' in config:
-                  matches = [t for t in config['targets'] if t['name'] == target]
-                  if len(matches) != 1:
-                      raise SystemExit('Test target must match exactly one configured recipient')
-                  config['targets'] = matches
-              else:
-                  if config['friends'].count(target) != 1:
-                      raise SystemExit('Test target must match exactly one configured recipient')
-                  config['friends'] = [target]
+          test_index = os.environ.get('TEST_INDEX', '')
+          if test_index:
+              field = 'targets' if 'targets' in config else 'friends'
+              if not test_index.isdecimal() or not 1 <= int(test_index) <= len(config[field]):
+                  raise SystemExit('Invalid recipient index')
+              config[field] = [config[field][int(test_index) - 1]]
               path.write_text(json.dumps(config, ensure_ascii=False))
           path.chmod(0o600)
           PY
