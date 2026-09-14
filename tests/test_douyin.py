@@ -113,6 +113,32 @@ async def test_search_result_keeps_normal_exact_match_working() -> None:
 
 
 @pytest.mark.asyncio
+async def test_search_result_treats_nbsp_as_an_ordinary_space() -> None:
+    page, buttons = _search_page(["CUTE\u00a0PUPPY"])
+
+    result = await DouyinChat(page)._search_result("CUTE PUPPY")
+
+    assert result is buttons[0]
+
+
+@pytest.mark.asyncio
+async def test_open_target_normalizes_nbsp_before_search(monkeypatch) -> None:
+    page = MagicMock()
+    page.wait_for_timeout = AsyncMock()
+    search = MagicMock()
+    search.click = AsyncMock()
+    search.fill = AsyncMock()
+    monkeypatch.setattr("app.douyin.first_visible", AsyncMock(return_value=search))
+    chat = DouyinChat(page)
+    chat._search_result = AsyncMock(return_value=MagicMock(click=AsyncMock()))
+    chat._confirm_opened = AsyncMock()
+
+    await chat._open_target_once("CUTE\u00a0PUPPY")
+
+    assert search.fill.await_args_list[-1].args == ("CUTE PUPPY",)
+
+
+@pytest.mark.asyncio
 async def test_search_result_accepts_group_count_suffix() -> None:
     # Group chats render as "<name>(<member count>)" in the search panel, e.g.
     # target "4161" is displayed as "4161(7)". The strict exact match alone would

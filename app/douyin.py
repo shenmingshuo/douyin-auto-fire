@@ -44,7 +44,7 @@ class DouyinChat:
         search = await first_visible(self.page, SEARCH_INPUTS, self.timeout_ms)
         await search.click()
         await search.fill("")
-        await search.fill(name)
+        await search.fill(_normalize_name(name))
         await self.page.wait_for_timeout(1_500)
 
         result = await self._search_result(name)
@@ -290,7 +290,7 @@ async def _has_exact_text(locators: Locator, expected: str) -> bool:
 
 async def _text_equals(locator: Locator, expected: str) -> bool:
     try:
-        return (await locator.inner_text(timeout=500)).strip() == expected
+        return _normalize_name(await locator.inner_text(timeout=500)) == _normalize_name(expected)
     except Exception:
         return False
 
@@ -305,12 +305,17 @@ _GROUP_COUNT_SUFFIX_RE_TEMPLATE = r"{name}\s*[\(（]\s*\d+\s*[\)）]"
 
 
 def _group_count_suffix_matches(actual: str, expected: str) -> bool:
-    actual = actual.strip()
-    expected = expected.strip()
+    actual = _normalize_name(actual)
+    expected = _normalize_name(expected)
     if actual == expected:
         return True
     pattern = _GROUP_COUNT_SUFFIX_RE_TEMPLATE.format(name=re.escape(expected))
     return re.fullmatch(pattern, actual) is not None
+
+
+def _normalize_name(value: str) -> str:
+    """Treat browser-rendered Unicode whitespace as ordinary spaces."""
+    return re.sub(r"\s+", " ", value).strip()
 
 
 async def _group_name_matches(locator: Locator, expected: str) -> bool:
