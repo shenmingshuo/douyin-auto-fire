@@ -1,0 +1,23 @@
+name: Cloud Schedule Probe
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Record scheduler event without accessing credentials
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          echo "Event: $EVENT" >> "$GITHUB_STEP_SUMMARY"
+          echo "Schedule: $SCHEDULE" >> "$GITHUB_STEP_SUMMARY"
+          date -u '+UTC: %Y-%m-%d %H:%M:%S' >> "$GITHUB_STEP_SUMMARY"
+          TZ=Asia/Shanghai date '+Beijing: %Y-%m-%d %H:%M:%S' >> "$GITHUB_STEP_SUMMARY"
