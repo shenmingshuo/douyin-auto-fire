@@ -6,7 +6,11 @@ on:
       dry_run:
         description: Only verify login and friends without sending
         type: boolean
-        default: false
+        default: true
+      test_target:
+        description: Optional exact friend name for a single-recipient test
+        type: string
+        default: ""
   schedule:
     - cron: "1 0 * * *"
       timezone: "Asia/Shanghai"
@@ -30,6 +34,7 @@ jobs:
       WEBHOOK_HEADERS: ${{ secrets.WEBHOOK_HEADERS }}
       WEBHOOK_TEMPLATE: ${{ secrets.WEBHOOK_TEMPLATE }}
       HEADLESS: "true"
+      TRACE: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -110,16 +115,30 @@ jobs:
           PY
       - name: Run
         shell: bash
+        env:
+          TEST_TARGET: ${{ inputs.test_target }}
         run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('config.json')
+          config = json.loads(path.read_text())
+          target = os.environ.get('TEST_TARGET', '')
+          if target:
+              if 'targets' in config:
+                  matches = [t for t in config['targets'] if t['name'] == target]
+                  if len(matches) != 1:
+                      raise SystemExit('Test target must match exactly one configured recipient')
+                  config['targets'] = matches
+              else:
+                  if config['friends'].count(target) != 1:
+                      raise SystemExit('Test target must match exactly one configured recipient')
+                  config['friends'] = [target]
+              path.write_text(json.dumps(config, ensure_ascii=False))
+          path.chmod(0o600)
+          PY
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
             python run.py --dry-run
           else
             python run.py
           fi
-      - name: Upload diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: douyin-failure-${{ github.run_id }}
-          path: artifacts/
-          retention-days: 3
