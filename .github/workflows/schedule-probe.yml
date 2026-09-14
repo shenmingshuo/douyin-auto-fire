@@ -5,7 +5,8 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  actions: write
 
 jobs:
   probe:
@@ -21,3 +22,9 @@ jobs:
           echo "Schedule: $SCHEDULE" >> "$GITHUB_STEP_SUMMARY"
           date -u '+UTC: %Y-%m-%d %H:%M:%S' >> "$GITHUB_STEP_SUMMARY"
           TZ=Asia/Shanghai date '+Beijing: %Y-%m-%d %H:%M:%S' >> "$GITHUB_STEP_SUMMARY"
+      - name: Stop diagnostic after observing a scheduled event
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: gh api --method PUT "repos/$REPOSITORY/actions/workflows/schedule-probe.yml/disable"
